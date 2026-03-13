@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>国际能源市场实时行情 | Global Energy Market Data</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', 'Noto Sans SC', sans-serif; background: #0a0e1a; color: #ffffff; overflow: hidden; height: 100vh; width: 100vw; }
+        .bg-grid { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-image: linear-gradient(rgba(0, 255, 255, 0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(0, 255, 255, 0.03) 1px, transparent 1px); background-size: 50px 50px; animation: gridMove 20s linear infinite; z-index: 0; }
+        @keyframes gridMove { 0% { transform: translate(0, 0); } 100% { transform: translate(50px, 50px); } }
+        .glow-overlay { position: absolute; top: -50%; left: -50%; width: 200%; height: 200%; background: radial-gradient(circle at 50% 50%, rgba(0, 150, 255, 0.1) 0%, transparent 50%); animation: pulse 4s ease-in-out infinite; z-index: 1; pointer-events: none; }
+        @keyframes pulse { 0%, 100% { opacity: 0.5; transform: scale(1); } 50% { opacity: 0.8; transform: scale(1.1); } }
+        .main-container { position: relative; z-index: 10; height: 100vh; display: flex; flex-direction: column; padding: 2rem; background: linear-gradient(135deg, rgba(10, 14, 26, 0.95) 0%, rgba(20, 25, 40, 0.98) 100%); }
+        .header { display: flex; justify-content: space-between; align-items: center; padding-bottom: 1.5rem; border-bottom: 1px solid rgba(255, 255, 255, 0.1); margin-bottom: 2rem; }
+        .company-brand { display: flex; align-items: center; gap: 1rem; }
+        .logo-icon { width: 60px; height: 60px; background: linear-gradient(135deg, #00d4ff 0%, #0099ff 100%); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 28px; font-weight: bold; box-shadow: 0 0 30px rgba(0, 212, 255, 0.5); }
+        .company-info h1 { font-size: 2rem; font-weight: 700; background: linear-gradient(90deg, #ffffff 0%, #00d4ff 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; letter-spacing: 2px; }
+        .company-info p { color: rgba(255, 255, 255, 0.6); font-size: 0.9rem; letter-spacing: 1px; margin-top: 0.25rem; }
+        .datetime-display { text-align: right; }
+        .time { font-size: 3rem; font-weight: 300; color: #00d4ff; font-variant-numeric: tabular-nums; text-shadow: 0 0 20px rgba(0, 212, 255, 0.5); }
+        .date { color: rgba(255, 255, 255, 0.7); font-size: 1.1rem; margin-top: 0.5rem; }
+        .content-wrapper { flex: 1; display: grid; grid-template-columns: 1fr 1.2fr; gap: 2rem; overflow: hidden; }
+        .visual-section { position: relative; border-radius: 20px; overflow: hidden; background: linear-gradient(135deg, rgba(0, 50, 100, 0.3) 0%, rgba(0, 20, 40, 0.5) 100%); border: 1px solid rgba(0, 212, 255, 0.2); box-shadow: 0 0 40px rgba(0, 0, 0, 0.5), inset 0 0 20px rgba(0, 212, 255, 0.05); }
+        .visual-image { width: 100%; height: 100%; object-fit: cover; opacity: 0.8; transition: transform 10s ease; }
+        .visual-section:hover .visual-image { transform: scale(1.05); }
+        .visual-overlay { position: absolute; bottom: 0; left: 0; right: 0; padding: 2rem; background: linear-gradient(to top, rgba(10, 14, 26, 0.95) 0%, transparent 100%); }
+        .visual-title { font-size: 1.5rem; font-weight: 600; margin-bottom: 0.5rem; color: #00d4ff; }
+        .visual-desc { color: rgba(255, 255, 255, 0.8); line-height: 1.6; font-size: 0.95rem; }
+        .data-section { display: flex; flex-direction: column; gap: 1.5rem; }
+        .section-header { display: flex; justify-content: space-between; align-items: center; }
+        .section-title { font-size: 1.5rem; font-weight: 600; color: #ffffff; display: flex; align-items: center; gap: 0.75rem; }
+        .live-indicator { display: flex; align-items: center; gap: 0.5rem; background: rgba(0, 255, 100, 0.1); padding: 0.5rem 1rem; border-radius: 20px; border: 1px solid rgba(0, 255, 100, 0.3); }
+        .live-dot { width: 8px; height: 8px; background: #00ff64; border-radius: 50%; animation: blink 2s infinite; }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+        .live-text { color: #00ff64; font-size: 0.85rem; font-weight: 600; }
+        .data-table-container { flex: 1; background: rgba(255, 255, 255, 0.03); border-radius: 16px; border: 1px solid rgba(255, 255, 255, 0.05); overflow: hidden; backdrop-filter: blur(10px); }
+        .data-table { width: 100%; border-collapse: collapse; }
+        .data-table thead { background: rgba(0, 212, 255, 0.1); }
+        .data-table th { padding: 1.2rem 1rem; text-align: left; font-weight: 600; color: #00d4ff; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 1px; border-bottom: 2px solid rgba(0, 212, 255, 0.2); }
+        .data-table td { padding: 1.5rem 1rem; border-bottom: 1px solid rgba(255, 255, 255, 0.05); font-size: 1rem; }
+        .product-name { font-weight: 600; color: #ffffff; font-size: 1.1rem; }
+        .market-tag { display: inline-block; padding: 0.25rem 0.75rem; background: rgba(255, 255, 255, 0.1); border-radius: 4px; font-size: 0.85rem; color: rgba(255, 255, 255, 0.7); }
+        .price-cell { font-size: 1.3rem; font-weight: 700; color: #ffffff; font-variant-numeric: tabular-nums; transition: opacity 0.3s ease; }
+        .unit { font-size: 0.8rem; color: rgba(255, 255, 255, 0.5); font-weight: 400; margin-left: 0.25rem; }
+        .change-positive { color: #ff4d4d; font-weight: 600; display: flex; align-items: center; gap: 0.25rem; }
+        .change-negative { color: #00ff64; font-weight: 600; display: flex; align-items: center; gap: 0.25rem; }
+        .trend-icon { font-size: 0.8rem; }
+        .range-cell { color: rgba(255, 255, 255, 0.7); font-size: 0.9rem; }
+        .ticker-bar { height: 60px; background: rgba(0, 0, 0, 0.5); border-top: 1px solid rgba(0, 212, 255, 0.2); display: flex; align-items: center; overflow: hidden; margin-top: 1.5rem; position: relative; }
+        .ticker-content { display: flex; animation: scroll 30s linear infinite; white-space: nowrap; }
+        @keyframes scroll { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
+        .ticker-item { display: inline-flex; align-items: center; padding: 0 3rem; color: rgba(255, 255, 255, 0.8); font-size: 1rem; }
+        .ticker-symbol { color: #00d4ff; font-weight: 600; margin-right: 0.5rem; }
+    </style>
+</head>
+<body>
+    <div class="bg-grid"></div>
+    <div class="glow-overlay"></div>
+    <div class="main-container">
+        <header class="header">
+            <div class="company-brand">
+                <div class="logo-icon">E</div>
+                <div class="company-info">
+                    <h1>ENERGY PRO</h1>
+                    <p>国际能源大宗商品交易中心 | Global Energy Trading Center</p>
+                </div>
+            </div>
+            <div class="datetime-display">
+                <div class="time" id="clock">00:00:00</div>
+                <div class="date" id="date">加载中...</div>
+            </div>
+        </header>
+        <div class="content-wrapper">
+            <div class="visual-section">
+                <img src="https://kimi-web-img.moonshot.cn/img/hct-world.com/84ab5b47301bc64d2edccfac56e9d12d8c8b4abe.jpg" alt="炼油厂设施" class="visual-image">
+                <div class="visual-overlay">
+                    <h3 class="visual-title">全球能源供应链</h3>
+                    <p class="visual-desc">提供实时的市场数据、专业的分析服务和高效的贸易解决方案。</p>
+                </div>
+            </div>
+            <div class="data-section">
+                <div class="section-header">
+                    <h2 class="section-title"><span>📊</span>国际大宗商品实时行情</h2>
+                    <div class="live-indicator">
+                        <div class="live-dot" id="live-dot"></div>
+                        <span class="live-text" id="status-text">CONNECTING SERVER...</span>
+                    </div>
+                </div>
+                <div class="data-table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr><th>品种</th><th>交易所</th><th>最新价格</th><th>涨跌/幅度</th><th>今日区间</th></tr>
+                        </thead>
+                        <tbody id="market-tbody">
+                            <tr><td colspan="5" style="text-align: center; color: #00d4ff;">正在连接专属 Python 数据引擎...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <div class="ticker-bar">
+            <div class="ticker-content" id="ticker-content"></div>
+        </div>
+    </div>
+
+    <script>
+        function updateClock() {
+            const now = new Date();
+            document.getElementById('clock').textContent = now.toLocaleTimeString('zh-CN', { hour12: false });
+            document.getElementById('date').textContent = now.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
+        }
+        setInterval(updateClock, 1000); updateClock();
+
+        let marketData = [];
+
+        function renderUI() {
+            if(marketData.length === 0) return;
+            const tbody = document.getElementById('market-tbody');
+            tbody.innerHTML = marketData.map(item => {
+                const isUp = parseFloat(item.change) >= 0 || item.change === '--';
+                const colorClass = isUp ? 'change-positive' : 'change-negative';
+                const icon = item.change === '--' ? '-' : (isUp ? '▲' : '▼');
+                return `
+                    <tr>
+                        <td><div class="product-name">${item.name}</div></td>
+                        <td><span class="market-tag">${item.exchange}</span></td>
+                        <td class="price-cell">${item.price !== '--' ? item.price : '--'}<span class="unit">${item.unit}</span></td>
+                        <td class="${colorClass}"><span class="trend-icon">${icon}</span>${item.change} (${item.changePct !== '--' ? item.changePct + '%' : '--'})</td>
+                        <td class="range-cell">${item.low} - ${item.high}</td>
+                    </tr>
+                `;
+            }).join('');
+
+            const tickerHtml = marketData.map(item => {
+                const isUp = parseFloat(item.change) >= 0;
+                const icon = isUp ? '▲' : '▼';
+                const color = isUp ? '#ff4d4d' : '#00ff64';
+                return `<div class="ticker-item"><span class="ticker-symbol">${item.name}</span><span style="color: ${color}; font-weight: 600;">${item.price} ${item.change !== '--' ? icon : ''} ${item.changePct !== '--' ? item.changePct + '%' : ''}</span></div>`;
+            }).join('');
+            document.getElementById('ticker-content').innerHTML = tickerHtml + tickerHtml;
+            
+            const prices = document.querySelectorAll('.price-cell');
+            prices.forEach(price => { price.style.opacity = '0.5'; setTimeout(() => { price.style.opacity = '1'; }, 300); });
+        }
+
+        async function fetchRealTimeData() {
+            try {
+                // 直接向你的专属 Python 服务器请求数据
+                const response = await fetch('/api/data');
+                if (!response.ok) throw new Error('Network response was not ok');
+                marketData = await response.json();
+                
+                renderUI();
+                document.getElementById('status-text').innerText = "LIVE MARKET DATA";
+                document.getElementById('status-text').style.color = "#00ff64";
+                document.getElementById('live-dot').style.background = "#00ff64";
+            } catch (error) {
+                console.error("数据获取失败:", error);
+                document.getElementById('status-text').innerText = "CONNECTION ERROR";
+                document.getElementById('status-text').style.color = "#ff4d4d";
+                document.getElementById('live-dot').style.background = "#ff4d4d";
+            }
+        }
+
+        setTimeout(fetchRealTimeData, 1000);
+        setInterval(fetchRealTimeData, 15000); // 云端服务器请求不要太频繁，15秒刷新一次最佳
+    </script>
+</body>
+</html>
