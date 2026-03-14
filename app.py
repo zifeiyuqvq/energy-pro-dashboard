@@ -1,79 +1,86 @@
 from flask import Flask, render_template, jsonify
-import yfinance as yf
 import requests
 from bs4 import BeautifulSoup
-import time
+import re
 
 app = Flask(__name__)
 
-# 当用户访问你的网址时，返回那个漂亮的 HTML 网页
+# 当访问网址时，展示你的炫酷 HTML
 @app.route('/')
 def home():
     return render_template('index.html')
 
-# 你的专属 API 接口：负责去抓取全网真实数据
-@app.route('/api/data')
-def get_market_data():
-    market_data = []
+# 核心智能爬虫函数：去指定网址抠出最新价格和涨跌幅
+def scrape_guojiyoujia(url, cid, name, exchange, unit):
+    # 伪装成真实的浏览器，防止被对方防火墙拦截
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+    }
     
-    # --- 1. 爬虫抓取 ICE 国际柴油 (guojiyoujia.com) ---
-    gasoil_price, gasoil_change, gasoil_pct = "--", "--", "--"
+    # 默认空数据格式
+    data = {
+        'id': cid, 'code': cid, 'name': name,
+        'exchange': exchange, 'unit': unit,
+        'price': '--', 'change': '--', 'changePct': '--',
+        'high': '--', 'low': '--'
+    }
+    
     try:
-        url = "https://www.guojiyoujia.com/ICE_Low_Sulphur_Gasoil/"
-        headers = {"User-Agent": "Mozilla/5.0"}
+        # 发送请求并解析网页
         resp = requests.get(url, headers=headers, timeout=5)
         resp.encoding = 'utf-8'
         soup = BeautifulSoup(resp.text, 'html.parser')
         
-        # 寻找带 $ 符号的文本
-        price_tag = soup.find(string=lambda t: t and '$' in t)
-        if price_tag:
-            gasoil_price = price_tag.replace('$', '').replace(',', '').strip()
+        # 提取网页上所有的纯文本
+        text = soup.get_text(separator=' ')
+        
+        # 使用正则表达式（Regex）精准匹配网页里的特殊字符
+        match_price = re.search(r'\$\s*([0-9\.,]+)', text)
+        match_yest = re.search(r'昨日收盘\s*:\s*([0-9\.,]+)', text)
+        match_high = re.search(r'今日最高\s*:\s*([0-9\.,]+)', text)
+        match_low = re.search(r'今日最低\s*:\s*([0-9\.,]+)', text)
+        
+        if match_price:
+            current_price = float(match_price.group(1).replace(',', ''))
+            data['price'] = f"{current_price:.2f}"
+            
+            # 如果能找到昨天的收盘价，Python 自动帮你算出涨跌幅！
+            if match_yest:
+                yest_price = float(match_yest.group(1).replace(',', ''))
+                if yest_price != 0:
+                    change = current_price - yest_price
+                    pct = (change / yest_price) * 100
+                    data['change'] = f"{change:+.2f}"
+                    data['changePct'] = f"{pct:+.2f}"
+            
+            # 提取最高和最低价
+            if match_high:
+                data['high'] = match_high.group(1).replace(',', '')
+            if match_low:
+                data['low'] = match_low.group(1).replace(',', '')
+                
     except Exception as e:
-        pass # 如果目标网站卡顿，直接跳过，防止我们的网页崩溃
+        print(f"抓取 {name} 失败: {e}")
+        
+    return data
 
-    market_data.append({
-        'id': 'gasoil', 'code': 'ICE_GAS', 'name': 'ICE 国际柴油', 
-        'exchange': 'ICE', 'unit': 'USD/吨', 'price': gasoil_price, 
-        'change': gasoil_change, 'changePct': gasoil_pct, 'high': '--', 'low': '--'
-    })
-
-    # --- 2. 雅虎财经获取国际四大品种 ---
-    yahoo_symbols = [
-        {'id': 'brent', 'code': 'BZ=F', 'name': '布伦特原油', 'exchange': 'ICE', 'unit': 'USD/桶'},
-        {'id': 'wti', 'code': 'CL=F', 'name': 'WTI 纽约原油', 'exchange': 'NYMEX', 'unit': 'USD/桶'},
-        {'id': 'ngas', 'code': 'NG=F', 'name': 'NYMEX 天然气', 'exchange': 'NYMEX', 'unit': 'USD/百万英热'},
-        {'id': 'gold', 'code': 'GC=F', 'name': 'COMEX 黄金', 'exchange': 'COMEX', 'unit': 'USD/盎司'}
+# 你的专属数据接口：负责统筹 5 大品种的爬取
+@app.route('/api/data')
+def get_market_data():
+    # 目标抓取网址列表 (全部精准指向 guojiyoujia.com 的各大子页面)
+    targets = [
+        ("https://www.guojiyoujia.com/ICE_Low_Sulphur_Gasoil/", "gasoil", "ICE 国际柴油", "ICE", "USD/吨"),
+        ("https://www.guojiyoujia.com/Brent/", "brent", "布伦特原油", "ICE", "USD/桶"),
+        ("https://www.guojiyoujia.com/", "wti", "WTI 纽约原油", "NYMEX", "USD/桶"), # 首页默认显示 WTI 主力
+        ("https://www.guojiyoujia.com/Dubai/", "dubai", "中东迪拜原油", "DME", "USD/桶"),
+        ("https://www.guojiyoujia.com/Natural_Gas/", "ngas", "NYMEX 天然气", "NYMEX", "USD/百万英热")
     ]
-
-    for item in yahoo_symbols:
-        price, change, pct, high, low = "--", "--", "--", "--", "--"
-        try:
-            ticker = yf.Ticker(item['code'])
-            hist = ticker.history(period="2d")
-            if len(hist) >= 2:
-                prev_close = hist['Close'].iloc[0]
-                curr_price = hist['Close'].iloc[1]
-                high_val = hist['High'].iloc[1]
-                low_val = hist['Low'].iloc[1]
-                
-                change_val = curr_price - prev_close
-                pct_val = (change_val / prev_close) * 100
-                
-                price = f"{curr_price:.2f}"
-                change = f"{change_val:+.2f}"
-                pct = f"{pct_val:+.2f}"
-                high = f"{high_val:.2f}"
-                low = f"{low_val:.2f}"
-        except Exception:
-            pass
-
-        market_data.append({
-            'id': item['id'], 'code': item['code'], 'name': item['name'], 
-            'exchange': item['exchange'], 'unit': item['unit'], 'price': price, 
-            'change': change, 'changePct': pct, 'high': high, 'low': low
-        })
-
+    
+    market_data = []
+    # 循环去各大页面抓取数据
+    for url, cid, name, exchange, unit in targets:
+        market_data.append(scrape_guojiyoujia(url, cid, name, exchange, unit))
+        
     return jsonify(market_data)
 
 if __name__ == '__main__':
